@@ -1,0 +1,38 @@
+name: Observe workflow_run
+
+on:
+  workflow_run:
+    workflows: ["Fork CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    env:
+      EVENT_NAME: ${{ github.event_name }}
+      GH_ACTOR: ${{ github.actor }}
+      GH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+      WR_ACTOR: ${{ github.event.workflow_run.actor.login }}
+      WR_EVENT: ${{ github.event.workflow_run.event }}
+      WR_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      WR_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+      WR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      WR_PULL_REQUESTS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+      EVENT_SENDER: ${{ github.event.sender.login }}
+    steps:
+      - name: Print selected non-secret fields
+        shell: bash
+        run: |
+          printf 'EVENT_NAME=%s\n' "$EVENT_NAME"
+          printf 'GH_ACTOR=%s\n' "$GH_ACTOR"
+          printf 'GH_TRIGGERING_ACTOR=%s\n' "$GH_TRIGGERING_ACTOR"
+          printf 'WR_ACTOR=%s\n' "$WR_ACTOR"
+          printf 'WR_EVENT=%s\n' "$WR_EVENT"
+          printf 'WR_HEAD_BRANCH=%s\n' "$WR_HEAD_BRANCH"
+          printf 'WR_HEAD_REPOSITORY=%s\n' "$WR_HEAD_REPOSITORY"
+          printf 'WR_HEAD_SHA=%s\n' "$WR_HEAD_SHA"
+          printf 'WR_PULL_REQUESTS=%s\n' "$WR_PULL_REQUESTS"
+          printf 'EVENT_SENDER=%s\n' "$EVENT_SENDER"
