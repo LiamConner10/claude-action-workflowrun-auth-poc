@@ -6,8 +6,8 @@ on:
     types: [completed]
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
+  actions: write
 
 jobs:
   analyze:
@@ -43,7 +43,20 @@ jobs:
             --allowedTools "Bash(gh run view:*),Read"
             --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean"},"confidence":{"type":"number","minimum":0,"maximum":1},"summary":{"type":"string"}},"required":["is_flaky","confidence","summary"],"additionalProperties":false}'
 
+      - name: Run documented retry adapter
+        if: |
+          fromJSON(steps.detect.outputs.structured_output).is_flaky == true &&
+          fromJSON(steps.detect.outputs.structured_output).confidence >= 0.7
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
+          SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
+          echo "Retrying failed workflow at confidence $CONFIDENCE: $SUMMARY"
+
       - name: Verify authorization and disclosure without printing secrets
+        if: always()
         env:
           STRUCTURED_OUTPUT: ${{ steps.detect.outputs.structured_output }}
           PROOF_GITHUB_TOKEN: ${{ github.token }}
@@ -51,9 +64,11 @@ jobs:
           ACTION_WORKFLOW_ACTOR: ${{ github.actor }}
           WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
           WORKFLOW_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          EVIDENCE_REF: evidence/workflowrun-${{ github.run_id }}
         shell: bash
         run: |
           node <<'NODE'
+          (async () => {
           const output = process.env.STRUCTURED_OUTPUT || "";
           const token = process.env.PROOF_GITHUB_TOKEN || "";
           const crypto = require("node:crypto");
@@ -75,4 +90,14 @@ jobs:
           console.log(`EMBEDDED_CREDENTIAL_EQUALS_JOB_TOKEN=${embedded.length > 0 && embedded === token}`);
           console.log(`EMBEDDED_CREDENTIAL_SHA256=${sha256(embedded)}`);
           console.log(`JOB_TOKEN_SHA256=${sha256(token)}`);
+          const refResponse = await fetch(
+            `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/git/ref/heads/${process.env.EVIDENCE_REF}`,
+            { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } },
+          );
+          console.log(`INJECTED_BASE_REF_PRESENT=${refResponse.status === 200}`);
+          console.log(`INJECTED_BASE_REF_NAME=${process.env.EVIDENCE_REF}`);
+          })().catch((error) => {
+            console.error(`VERIFIER_ERROR=${error.message}`);
+            process.exitCode = 1;
+          });
           NODE
