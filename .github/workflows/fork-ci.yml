@@ -10,5 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Controlled test
-        run: echo "controlled fork CI complete"
+      - uses: actions/checkout@v4
+      - name: Run repository test
+        run: bash ./ci-test.sh
