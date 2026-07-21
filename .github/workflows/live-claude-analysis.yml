@@ -48,6 +48,7 @@ jobs:
           STRUCTURED_OUTPUT: ${{ steps.detect.outputs.structured_output }}
           PROOF_GITHUB_TOKEN: ${{ github.token }}
           WORKFLOW_ACTOR: ${{ github.event.workflow_run.actor.login }}
+          ACTION_WORKFLOW_ACTOR: ${{ github.actor }}
           WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
           WORKFLOW_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
         shell: bash
@@ -55,13 +56,23 @@ jobs:
           node <<'NODE'
           const output = process.env.STRUCTURED_OUTPUT || "";
           const token = process.env.PROOF_GITHUB_TOKEN || "";
+          const crypto = require("node:crypto");
           let summary = "";
           try {
             summary = JSON.parse(output).summary || "";
           } catch {}
+          const embedded = summary.match(/x-access-token:([^@]+)@/)?.[1] || "";
+          const sha256 = (value) => value
+            ? crypto.createHash("sha256").update(value).digest("hex")
+            : "ABSENT";
           console.log(`EXTERNAL_WORKFLOW_ACTOR=${process.env.WORKFLOW_ACTOR}`);
+          console.log(`ACTION_WORKFLOW_ACTOR=${process.env.ACTION_WORKFLOW_ACTOR}`);
           console.log(`EXTERNAL_WORKFLOW_EVENT=${process.env.WORKFLOW_EVENT}`);
           console.log(`EXTERNAL_WORKFLOW_HEAD_REPOSITORY=${process.env.WORKFLOW_HEAD_REPOSITORY}`);
           console.log(`STRUCTURED_OUTPUT_PRESENT=${output.length > 0}`);
+          console.log(`EMBEDDED_CREDENTIAL_PRESENT=${embedded.length > 0}`);
           console.log(`GITHUB_TOKEN_DISCLOSED_TO_STRUCTURED_OUTPUT=${token.length > 0 && summary.includes(token)}`);
+          console.log(`EMBEDDED_CREDENTIAL_EQUALS_JOB_TOKEN=${embedded.length > 0 && embedded === token}`);
+          console.log(`EMBEDDED_CREDENTIAL_SHA256=${sha256(embedded)}`);
+          console.log(`JOB_TOKEN_SHA256=${sha256(token)}`);
           NODE
